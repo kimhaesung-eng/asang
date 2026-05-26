@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>아주대 커뮤니티 맵핑</title>
+
+<script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+<script>
+    // 카카오 SDK 초기화 (카톡 공유 기능용)
+    try {
+        Kakao.init('61505630491bce1fa1a31a8c36e1e3e3');
+        Kakao.isInitialized();
+    } catch(e) {
+        console.error("Kakao SDK 초기화 실패:", e);
+    }
+</script>
+<script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=61505630491bce1fa1a31a8c36e1e3e3"></script>
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+#center-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    width: 75px;
+    height: 75px;
+    pointer-events: none;
+}
+
+.map-btn {
+    position: absolute;
+    z-index: 10;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.location-btn {
+    bottom: 40px;
+    left: 40px;
+    width: 150px;
+    height: 150px;
+    font-size: 100px;
+}
+
+.add-marker-btn {
+    bottom: 40px;
+    right: 40px;
+    width: 150px;
+    height: 150px;
+    background: #fae100;
+    font-size: 100px;
+    font-weight: bold;
+}
+
+#view-toggle-btn {
+    top: 40px;
+    right: 40px;
+    width: 150px;
+    height: 150px;
+    border-radius: 30px;
+    font-size: 34px;
+    font-weight: bold;
+}
+
+#safe-route-btn {
+    top: 220px;
+    right: 40px;
+    width: 150px;
+    height: 150px;
+    border-radius: 30px;
+    background: #00C853;
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.custom-modal {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    width: 90%;
+    max-width: 800px;
+    background: white;
+    padding: 40px;
+    border-radius: 30px;
+    box-shadow: 0 0 50px rgba(0,0,0,0.6);
+    box-sizing: border-box;
+}
+
+.custom-modal h2 {
+    margin-top: 0;
+    font-size: 48px;
+}
+
+.custom-modal select,
+.custom-modal textarea,
+.custom-modal input {
+    width: 100%;
+    margin-bottom: 25px;
+    padding: 20px;
+    border: 2px solid #ddd;
+    border-radius: 15px;
+    font-size: 32px;
+    box-sizing: border-box;
+}
+
+.overlay-wrap {
+    position: absolute;
+    bottom: 40px;
+    left: -250px;
+    width: 500px;
+}
+
+.overlay-content {
+    position: relative;
+    background: white;
+    border-radius: 30px;
+    border: 2px solid #eee;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    padding: 30px;
+    text-align: center;
+}
+
+.overlay-content:after {
+    content: '';
+    position: absolute;
+    border-top: 25px solid white;
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.v-category {
+    font-size: 24px;
+    color: #888;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.v-content {
+    font-size: 34px;
+    line-height: 1.4;
+    margin-bottom: 20px;
+    font-weight: bold;
+    color: #333;
+}
+
+.v-img-container {
+    position: relative;
+    width: 100%;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f9f9f9;
+    border-radius: 20px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.v-img {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    display: none;
+}
+
+.mini-spinner {
+    width: 50px;
+    height: 50px;
+    border: 6px solid rgba(0,0,0,0.1);
+    border-top: 6px solid #fae100;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+.modal-footer button {
+    flex: 1;
+    padding: 25px;
+    border: none;
+    border-radius: 15px;
+    font-size: 32px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-cancel {
+    background: #eee;
+}
+
+.btn-action {
+    background: #fae100;
+}
+
+.btn-delete {
+    background: #ff4d4d;
+    color: white;
+}
+
+#loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    z-index: 9999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.spinner {
+    width: 90px;
+    height: 90px;
+    border: 10px solid rgba(255,255,255,0.3);
+    border-top: 10px solid #fae100;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 30px;
+}
+
+.loading-text {
+    font-size: 36px;
+    font-weight: bold;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<img src="icon/cross.png" id="center-icon">
+
+<button class="map-btn location-btn" onclick="getCurrentLocation()">🎯</button>
+
+<button class="map-btn add-marker-btn" onclick="openModal('write-modal')">+</button>
+
+<button class="map-btn" id="view-toggle-btn">위험도</button>
+
+<button class="map-btn" id="safe-route-btn">안전경로</button>
+
+<div id="write-modal" class="custom-modal">
+    <h2>📍 공유하기</h2>
+    <select id="m-category"></select>
+    <textarea id="m-content" rows="5" placeholder="내용을 입력하세요."></textarea>
+    <input type="file" id="m-photo" accept="image/*">
+
+    <div class="modal-footer">
+        <button class="btn-cancel" id="btn-modal-cancel" onclick="closeModal('write-modal')">취소</button>
+        <button class="btn-action" id="btn-modal-upload" onclick="uploadData()">공유하기</button>
+    </div>
+</div>
+
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text">게시 중...</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+// [수정] index2의 실제 작동하는 Firebase Config 데이터로 교체 완료
+const firebaseConfig = {
+    apiKey: "AIzaSyAfFeWiJVpDHjlITSA3NvVJFl6c96JlskQ",
+    authDomain: "sixsen-39531.firebaseapp.com",
+    projectId: "sixsen-39531",
+    storageBucket: "sixsen-39531.firebasestorage.app",
+    messagingSenderId: "480856949707",
+    appId: "1:480856949707:web:7678d2722d6092109f6c4e"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+const mapContainer = document.getElementById('map');
+const mapOption = {
+    center: new kakao.maps.LatLng(37.283, 127.0446),
+    level: 3
+};
+
+const map = new kakao.maps.Map(mapContainer, mapOption);
+
+let markersMap = {};
+let currentOverlay = null;
+let currentOverlayId = null;
+let categoryData = {};
+let myLocationMarker = null;
+let myLocationCircle = null;
+let clusterCircles = [];
+let currentViewMode = "pin";
+let routeLine = null;
+
+function getDangerColor(count) {
+    if (count <= 2) return 'rgba(255,230,0,0.4)';
+    if (count <= 5) return 'rgba(255,140,0,0.5)';
+    return 'rgba(255,0,0,0.6)';
+}
+
+function clearClusters() {
+    clusterCircles.forEach(c => c.setMap(null));
+    clusterCircles = [];
+}
+
+function createDangerClusters() {
+    clearClusters();
+    const grouped = {};
+
+    Object.values(markersMap).forEach(marker => {
+        const pos = marker.getPosition();
+        const key = pos.getLat().toFixed(3) + "_" + pos.getLng().toFixed(3);
+
+        if (!grouped[key]) {
+            grouped[key] = {
+                lat: pos.getLat(),
+                lng: pos.getLng(),
+                count: 0
+            };
+        }
+        grouped[key].count++;
+    });
+
+    Object.values(grouped).forEach(g => {
+        const circle = new kakao.maps.Circle({
+            center: new kakao.maps.LatLng(g.lat, g.lng),
+            radius: 50 + (g.count * 20),
+            strokeWeight: 0,
+            fillColor: getDangerColor(g.count),
+            fillOpacity: 0.7
+        });
+
+        circle.setMap(map);
+        clusterCircles.push(circle);
+    });
+}
+
+window.getCurrentLocation = function() {
+    if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(p => {
+            const lat = p.coords.latitude;
+            const lng = p.coords.longitude;
+            const loc = new kakao.maps.LatLng(lat, lng);
+
+            map.setCenter(loc);
+            map.setLevel(1);
+
+            if (myLocationMarker) myLocationMarker.setMap(null);
+            if (myLocationCircle) myLocationCircle.setMap(null);
+
+            myLocationCircle = new kakao.maps.Circle({
+                center: loc,
+                radius: 25,
+                strokeWeight: 0,
+                fillColor: '#4A90E2',
+                fillOpacity: 0.25
+            });
+
+            myLocationMarker = new kakao.maps.Circle({
+                center: loc,
+                radius: 8,
+                strokeWeight: 3,
+                strokeColor: '#fff',
+                fillColor: '#4A90E2',
+                fillOpacity: 1
+            });
+
+            myLocationCircle.setMap(map);
+            myLocationMarker.setMap(map);
+
+            document.getElementById('center-icon').style.display = 'none';
+        });
+    }
+};
+
+async function loadCategories() {
+    try {
+        const cacheBuster = Date.now();
+        const response = await fetch(`categories.json?v=${cacheBuster}`);
+        const data = await response.json();
+        const selectEl = document.getElementById('m-category');
+
+        selectEl.innerHTML = "";
+        categoryData = {};
+
+        data.pins.forEach(pin => {
+            categoryData[pin.category] = pin.img;
+            const opt = document.createElement('option');
+            opt.value = pin.category;
+            opt.innerText = pin.category;
+            selectEl.appendChild(opt);
+        });
+
+        initRealtimeSync();
+    } catch(e) {
+        console.error(e);
+        initRealtimeSync();
+    }
+}
+
+function initRealtimeSync() {
+    const q = query(collection(db, "markers"), orderBy("timestamp", "desc"));
+
+    onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            const data = change.doc.data();
+            const id = change.doc.id;
+
+            if (change.type === "added") {
+                const targetImg = categoryData[data.category] || 'icon/pin_default.png';
+                const mSize = new kakao.maps.Size(90, 120);
+                const mOffset = new kakao.maps.Point(44, 120);
+
+                const iconImg = new kakao.maps.MarkerImage(
+                    targetImg,
+                    mSize,
+                    { offset: mOffset }
+                );
+
+                const marker = new kakao.maps.Marker({
+                    map: map,
+                    position: new kakao.maps.LatLng(data.lat, data.lng),
+                    image: iconImg
+                });
+
+                kakao.maps.event.addListener(marker, 'click', () => 
+                    showOverlay(id, data, marker.getPosition())
+                );
+
+                markersMap[id] = marker;
+
+                if (currentViewMode === "danger") {
+                    marker.setMap(null);
+                    createDangerClusters();
+                }
+
+                const imgChecker = new Image();
+                imgChecker.src = targetImg;
+                imgChecker.onerror = () => {
+                    const defaultIcon = new kakao.maps.MarkerImage(
+                        'icon/pin_default.png',
+                        mSize,
+                        { offset: mOffset }
+                    );
+                    marker.setImage(defaultIcon);
+                };
+
+            } else if (change.type === "removed") {
+                if (markersMap[id]) {
+                    markersMap[id].setMap(null);
+                    delete markersMap[id];
+                }
+
+                if (currentOverlayId === id) {
+                    currentOverlay.setMap(null);
+                    currentOverlay = null;
+                    currentOverlayId = null;
+                }
+
+                if (currentViewMode === "danger") {
+                    createDangerClusters();
+                }
+            }
+        });
+    });
+}
+
+function showOverlay(id, data, position) {
+    if (currentOverlay) currentOverlay.setMap(null);
+    currentOverlayId = id;
+
+    const content = document.createElement('div');
+    content.className = 'overlay-wrap';
+    content.addEventListener('click', e => e.stopPropagation());
+
+    let imgHtml = "";
+    if (data.imageUrl) {
+        imgHtml = `
+        <div class="v-img-container">
+            <div class="mini-spinner" id="img-loader"></div>
+            <img src="${data.imageUrl}" class="v-img" id="target-img">
+        </div>
+        `;
+    }
+
+    content.innerHTML = `
+    <div class="overlay-content">
+        <span class="v-category">[${data.category}]</span>
+        <div class="v-content">${data.content}</div>
+        ${imgHtml}
+        <div class="modal-footer">
+            <button class="btn-cancel" id="ov-close">닫기</button>
+            <button class="btn-action" id="ov-share" style="background: #FFE812; color: #000;">카톡공유</button>
+            <button class="btn-delete" id="ov-delete">삭제</button>
+        </div>
+    </div>
+    `;
+
+    if (data.imageUrl) {
+        const tImg = content.querySelector('#target-img');
+        const tLoader = content.querySelector('#img-loader');
+        tImg.onload = () => {
+            tLoader.style.display = 'none';
+            tImg.style.display = 'block';
+        };
+    }
+
+    content.querySelector('#ov-close').onclick = () => {
+        currentOverlay.setMap(null);
+        currentOverlay = null;
+        currentOverlayId = null;
+    };
+
+    content.querySelector('#ov-share').onclick = () => {
+        Kakao.Link.sendDefault({
+            objectType: 'feed',
+            content: {
+                title: `[${data.category}] ${data.content.substring(0, 30)}`,
+                description: data.content,
+                imageUrl: data.imageUrl || 'https://via.placeholder.com/400',
+                link: {
+                    mobileWebUrl: 'https://ajoumap.com',
+                    webUrl: 'https://ajoumap.com'
+                }
+            },
+            buttons: [
+                {
+                    title: '지도에서 보기',
+                    link: {
+                        mobileWebUrl: 'https://ajoumap.com',
+                        webUrl: 'https://ajoumap.com'
+                    }
+                }
+            ]
+        });
+    };
+
+    content.querySelector('#ov-delete').onclick = async () => {
+        if (!confirm("정말 삭제하시겠습니까?")) return;
+
+        try {
+            if (data.imageUrl) {
+                await deleteObject(ref(storage, data.imageUrl)).catch(()=>{});
+            }
+            await deleteDoc(doc(db, "markers", id));
+        } catch(err) {
+            alert("삭제 실패");
+        }
+    };
+
+    currentOverlay = new kakao.maps.CustomOverlay({
+        content,
+        position,
+        yAnchor: 1.2,
+        zIndex: 300,
+        clickable: true
+    });
+
+    currentOverlay.setMap(map);
+}
+
+window.uploadData = async function() {
+    const cat = document.getElementById('m-category').value;
+    const txt = document.getElementById('m-content').value;
+    const file = document.getElementById('m-photo').files[0];
+    const center = map.getCenter();
+
+    if (!txt) return alert("내용을 입력하세요.");
+
+    const upBtn = document.getElementById('btn-modal-upload');
+    const cancelBtn = document.getElementById('btn-modal-cancel');
+    const loader = document.getElementById('loading-overlay');
+
+    try {
+        upBtn.disabled = true;
+        cancelBtn.disabled = true;
+        upBtn.innerText = "공유 중...";
+        loader.style.display = "flex";
+
+        let url = "";
+        if (file) {
+            const sRef = ref(storage, `images/${Date.now()}_${file.name}`);
+            const snap = await uploadBytes(sRef, file);
+            url = await getDownloadURL(snap.ref);
+        }
+
+        await addDoc(collection(db, "markers"), {
+            category: cat,
+            content: txt,
+            lat: center.getLat(),
+            lng: center.getLng(),
+            imageUrl: url,
+            timestamp: new Date()
+        });
+
+        closeModal('write-modal');
+    } catch(e) {
+        console.error(e);
+        alert("업로드 실패");
+    } finally {
+        upBtn.disabled = false;
+        cancelBtn.disabled = false;
+        upBtn.innerText = "공유하기";
+        loader.style.display = "none";
+    }
+};
+
+function drawSafePath(path) {
+    if (routeLine) routeLine.setMap(null);
+
+    const linePath = path.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+
+    routeLine = new kakao.maps.Polyline({
+        path: linePath,
+        strokeWeight: 8,
+        strokeColor: '#00C853',
+        strokeOpacity: 0.9,
+        strokeStyle: 'solid'
+    });
+
+    routeLine.setMap(map);
+}
+
+document.getElementById('safe-route-btn').onclick = () => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(p => {
+        const start = {
+            lat: p.coords.latitude,
+            lng: p.coords.longitude
+        };
+
+        const center = map.getCenter();
+        const end = {
+            lat: center.getLat(),
+            lng: center.getLng()
+        };
+
+        const path = [
+            start,
+            {
+                lat: ((start.lat + end.lat) / 2) + ((Math.random() - 0.5) * 0.001),
+                lng: ((start.lng + end.lng) / 2) + ((Math.random() - 0.5) * 0.001)
+            },
+            end
+        ];
+
+        drawSafePath(path);
+    });
+};
+
+document.getElementById('view-toggle-btn').onclick = () => {
+    const btn = document.getElementById('view-toggle-btn');
+
+    if (currentViewMode === "pin") {
+        currentViewMode = "danger";
+        Object.values(markersMap).forEach(m => m.setMap(null));
+        createDangerClusters();
+        btn.innerText = "핀 보기";
+    } else {
+        currentViewMode = "pin";
+        clearClusters();
+        Object.values(markersMap).forEach(m => m.setMap(map));
+        btn.innerText = "위험도";
+    }
+};
+
+window.openModal = (id) => {
+    document.getElementById(id).style.display = 'block';
+};
+
+window.closeModal = (id) => {
+    document.getElementById(id).style.display = 'none';
+
+    if (id === 'write-modal') {
+        document.getElementById('m-content').value = "";
+        document.getElementById('m-photo').value = "";
+        document.getElementById('m-category').selectedIndex = 0;
+    }
+};
+
+kakao.maps.event.addListener(map, 'click', () => {
+    if (currentOverlay) {
+        currentOverlay.setMap(null);
+        currentOverlay = null;
+        currentOverlayId = null;
+    }
+});
+
+kakao.maps.event.addListener(map, 'dragstart', () => {
+    document.getElementById('center-icon').style.display = 'block';
+});
+
+loadCategories();
+</script>
+
+</body>
+</html>
